@@ -5,6 +5,12 @@ plugins {
   alias(libs.plugins.roborazzi)
 }
 
+kotlin {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+  }
+}
+
 android {
   namespace = "com.example"
   compileSdk = 36
