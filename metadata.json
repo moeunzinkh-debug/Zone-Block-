@@ -1,0 +1,6 @@
+{
+  "name": "Edge Protection",
+  "description": "Game Space edge protection tool to block accidental swipes, taps, and palm touches with real-time preview and custom touch guard zones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

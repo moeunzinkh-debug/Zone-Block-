@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Edge Protection</string>
+    <string name="accessibility_service_name">Real Screen Edge Touch Barrier</string>
+    <string name="accessibility_service_description">Provides real-time edge touch rejection overlay across games and apps to prevent accidental palm and edge touches.</string>
+</resources>
