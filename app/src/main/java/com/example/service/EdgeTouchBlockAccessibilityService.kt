@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -35,8 +34,9 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var windowManager: WindowManager? = null
     private var repository: EdgeProtectionRepository? = null
+    private var floatingControls: FloatingControls? = null
 
-    // Overlay views
+    // Overlay views (invisible barriers that only consume touches)
     private var leftOverlay: View? = null
     private var rightOverlay: View? = null
     private var topOverlay: View? = null
@@ -50,9 +50,18 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
 
         fun isRunning(): Boolean = instance != null
 
+        /**
+         * Called by the app whenever the user changes a setting.
+         * The app's ViewModel holds its own repository instance, so the service
+         * must re-read SharedPreferences to pick up the latest saved config.
+         */
         fun requestUpdate() {
-            instance?.updateOverlays()
+            instance?.onExternalUpdateRequested()
         }
+    }
+
+    private fun onExternalUpdateRequested() {
+        repository?.reloadFromPrefs()
     }
 
     override fun onServiceConnected() {
@@ -63,11 +72,19 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
         val db = AppDatabase.getDatabase(applicationContext)
         repository = EdgeProtectionRepository(applicationContext, db.blockedEventDao())
 
+        floatingControls = FloatingControls(
+            service = this,
+            onConfigChange = { newConfig ->
+                repository?.updateConfig(newConfig)
+            }
+        )
+
         serviceScope.launch {
             repository?.config?.collectLatest { config ->
                 currentConfig = config
                 withContext(Dispatchers.Main) {
                     updateOverlays()
+                    floatingControls?.onConfigChanged(config)
                 }
             }
         }
@@ -84,12 +101,15 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateOverlays()
+        floatingControls?.onScreenSizeChanged()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         instance = null
         removeOverlays()
+        floatingControls?.destroy()
+        floatingControls = null
         serviceScope.cancel()
     }
 
@@ -222,20 +242,19 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Create new interactive barrier view
+        // Create a fully transparent barrier view.
+        // Outside the app the blocking zone is invisible (the screen looks
+        // completely normal) but it still consumes every touch so games never
+        // receive accidental edge/palm input. Colors are only shown inside the
+        // in-app previews.
         val view = View(this).apply {
-            // Subtle translucent background for visual feedback during debugging / active state
-            val baseAlpha = (currentConfig.visualOverlayOpacity * 255).roundToInt().coerceIn(0, 180)
-            val drawable = GradientDrawable().apply {
-                setColor(Color.argb(baseAlpha, 255, 66, 107)) // Neon Red tone
-            }
-            background = drawable
+            setBackgroundColor(Color.TRANSPARENT)
 
             // Consumes touch event 100% (returning true blocks it from underlying games/apps)
-            setOnTouchListener { v, event ->
+            setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                        handleTouchBlocked(edgeName, v)
+                        handleTouchBlocked(edgeName)
                     }
                 }
                 // Return true to consume and block the touch completely!
@@ -252,23 +271,8 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
         return view
     }
 
-    private fun handleTouchBlocked(edgeName: String, view: View) {
-        // Flash visual indication
-        view.post {
-            val highlightDrawable = GradientDrawable().apply {
-                setColor(Color.argb(160, 255, 66, 107)) // Flash brighter on touch
-            }
-            view.background = highlightDrawable
-            view.postDelayed({
-                val normalAlpha = (currentConfig.visualOverlayOpacity * 255).roundToInt().coerceIn(0, 180)
-                val normalDrawable = GradientDrawable().apply {
-                    setColor(Color.argb(normalAlpha, 255, 66, 107))
-                }
-                view.background = normalDrawable
-            }, 180)
-        }
-
-        // Trigger Haptic Feedback
+    private fun handleTouchBlocked(edgeName: String) {
+        // Trigger Haptic Feedback (if enabled)
         triggerHaptic()
 
         // Record Blocked Event to Room DB
@@ -312,7 +316,7 @@ class EdgeTouchBlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun getRealScreenDimensions(): DisplayMetrics {
+    internal fun getRealScreenDimensions(): DisplayMetrics {
         val displayMetrics = DisplayMetrics()
         val wm = windowManager ?: return resources.displayMetrics
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

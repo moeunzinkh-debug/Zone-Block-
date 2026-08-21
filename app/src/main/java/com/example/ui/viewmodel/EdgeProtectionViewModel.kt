@@ -73,6 +73,9 @@ class EdgeProtectionViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun checkAccessibilityStatus() {
+        // Re-read config from prefs so changes made from the floating quick
+        // panel (which runs in the accessibility service) are reflected here.
+        repository.reloadFromPrefs()
         val enabled = AccessibilityHelper.isAccessibilityServiceEnabled(getApplication())
         _isAccessibilityEnabled.value = enabled
         if (enabled) {
