@@ -577,7 +577,7 @@ fun ControlsSection(
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    text = "Android APK notice: the interactive touch guard operates within the preview arena and simulator. System-wide edge overlays utilize Android AccessibilityService in native device environments.",
+                    text = "Outside this app the blocking zones are invisible (the screen looks completely normal) but they still block every touch. A floating bubble icon appears over games: drag it anywhere, tap it for quick off/on + zone size controls, and it tucks halfway into the screen edge when idle.",
                     color = Color(0xFFE6D0A3),
                     fontSize = 11.sp,
                     lineHeight = 16.sp

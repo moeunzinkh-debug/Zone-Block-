@@ -23,6 +23,15 @@ class EdgeProtectionRepository(
     val recentEvents: Flow<List<BlockedEvent>> = blockedEventDao.getRecentBlockedEvents()
     val totalBlockedCount: Flow<Int> = blockedEventDao.getTotalBlockedCount()
 
+    /**
+     * Re-reads the config from SharedPreferences and pushes it into the flow.
+     * Used by the accessibility service and the ViewModel to stay in sync with
+     * changes written by other repository instances (app UI <-> quick panel).
+     */
+    fun reloadFromPrefs() {
+        _config.value = loadConfig()
+    }
+
     private fun loadConfig(): EdgeProtectionConfig {
         return EdgeProtectionConfig(
             isEnabled = prefs.getBoolean("is_enabled", true),

@@ -20,19 +20,27 @@ android {
     applicationId = "com.aistudio.edgeprotection.gkspz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
+    // Stable upload keystore committed to the repo so that every build
+    // (local or CI) is signed with the SAME key. This is what allows new
+    // APKs to be installed directly over the old one without uninstalling.
+    // Keep applicationId, versionCode (incrementing) and this keystore stable.
+    create("upload") {
+      storeFile = file("${rootDir}/keystore/zone-block-upload.p12")
+      storeType = "PKCS12"
+      storePassword = System.getenv("ZONE_BLOCK_STORE_PASSWORD")
+        ?: (project.findProperty("zoneBlockStorePassword") as String?)
+        ?: "zone-block-2026"
       keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      keyPassword = System.getenv("ZONE_BLOCK_KEY_PASSWORD")
+        ?: (project.findProperty("zoneBlockKeyPassword") as String?)
+        ?: "zone-block-2026"
     }
   }
 
@@ -41,9 +49,11 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = signingConfigs.getByName("upload")
     }
-    debug { }
+    debug {
+      signingConfig = signingConfigs.getByName("upload")
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
